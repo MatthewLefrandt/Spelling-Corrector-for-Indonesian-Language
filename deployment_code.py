@@ -1,107 +1,86 @@
+# app.py
 import streamlit as st
-from transformers import T5ForConditionalGeneration, T5Tokenizer
+from transformers import AutoTokenizer, AutoModelForSeq2SeqGeneration
 import torch
 
-class TypoCorrector:
-    def __init__(self, model_name, tokenizer_dir):
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        
-        try:
-            # Load tokenizer
-            self.tokenizer = T5Tokenizer.from_pretrained(tokenizer_dir)
-            # Load model with size mismatch handling
-            self.model = T5ForConditionalGeneration.from_pretrained(model_name, ignore_mismatched_sizes=True)
-            # Set decoder_start_token_id to pad_token_id
-            self.model.config.decoder_start_token_id = self.tokenizer.pad_token_id
-        except Exception as e:
-            st.error(f"Error loading model or tokenizer: {e}")
-            raise
-        
-        self.model.to(self.device)
-        self.model.eval()
-        st.success(f"Model and tokenizer loaded successfully")
-        
-    def correct_text(self, text, max_length=128):
-        try:
-            # Tambahkan prefix sebelum input
-            prefixed_text = f"koreksi: {text}"
-            
-            # Encode input text and perform correction
-            input_ids = self.tokenizer.encode(prefixed_text, return_tensors='pt', max_length=max_length, truncation=True).to(self.device)
-            
-            with torch.no_grad():
-                output = self.model.generate(
-                    input_ids,
-                    decoder_start_token_id=self.model.config.decoder_start_token_id,
-                    max_length=max_length,
-                    num_beams=5,
-                    no_repeat_ngram_size=2,
-                    early_stopping=True
-                )
-            
-            # Decode correction result into text
-            corrected_text = self.tokenizer.decode(output[0], skip_special_tokens=True)
-            return corrected_text
-        except Exception as e:
-            st.error(f"Error during text correction: {e}")
-            return text  # Return original text if error occurs
-
-# Konfigurasi halaman Streamlit
+# Set page configuration
 st.set_page_config(
-    page_title="Indonesian Typo Corrector",
+    page_title="Koreksi Ejaan Bahasa Indonesia",
     page_icon="✍️",
-    layout="wide"
+    layout="centered"
 )
 
 @st.cache_resource
-def initialize_corrector():
-    """
-    Initialize the TypoCorrector with caching
-    """
-    MODEL_PATH = 'MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector'
-    TOKENIZER_PATH = 'MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector'
+def load_model_and_tokenizer():
+    """Load model and tokenizer from HuggingFace"""
+    tokenizer = AutoTokenizer.from_pretrained('MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector')
+    model = AutoModelForSeq2SeqGeneration.from_pretrained('MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector')
+    return model, tokenizer
+
+def correct_spelling(text, model, tokenizer):
+    """Correct spelling using the loaded model"""
+    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
     
-    try:
-        return TypoCorrector(MODEL_PATH, TOKENIZER_PATH)
-    except Exception as e:
-        st.error(f"Initialization failed: {e}")
-        return None
+    outputs = model.generate(
+        inputs.input_ids,
+        max_length=512,
+        num_beams=5,
+        early_stopping=True
+    )
+    
+    corrected_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return corrected_text
 
 def main():
-    st.title("Indonesian Typo Corrector")
-    st.write("Masukkan teks yang ingin dikoreksi ejaannya.")
-
-    # Initialize corrector
-    corrector = initialize_corrector()
+    st.title("Koreksi Ejaan Bahasa Indonesia 📝")
+    st.write("Aplikasi ini akan membantu Anda memperbaiki kesalahan pengetikan dalam bahasa Indonesia.")
     
-    if corrector is None:
-        st.error("Failed to initialize the model. Please refresh the page or check your internet connection.")
+    # Load model and tokenizer
+    try:
+        with st.spinner("Memuat model... Mohon tunggu sebentar."):
+            model, tokenizer = load_model_and_tokenizer()
+        st.success("Model berhasil dimuat!")
+    except Exception as e:
+        st.error(f"Terjadi kesalahan saat memuat model: {str(e)}")
         return
-
-    # Input text
-    input_text = st.text_area("Teks Input:", height=150)
     
-    if st.button("Koreksi Teks"):
-        if not input_text:
-            st.warning("Mohon masukkan teks terlebih dahulu.")
-            return
-            
-        with st.spinner("Sedang mengoreksi teks..."):
+    # Text input
+    text_input = st.text_area(
+        "Masukkan teks yang ingin dikoreksi:",
+        height=150,
+        placeholder="Contoh: sya ska mkn nasi greng"
+    )
+    
+    # Add correction button
+    if st.button("Koreksi Teks", type="primary"):
+        if text_input.strip():
             try:
-                result = corrector.correct_text(input_text)
+                with st.spinner("Sedang mengoreksi teks..."):
+                    corrected_text = correct_spelling(text_input, model, tokenizer)
                 
-                # Tampilkan hasil
+                # Display results
+                st.subheader("Hasil Koreksi:")
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.subheader("Teks Asli")
-                    st.write(input_text)
-                
+                    st.text_area("Teks Asli:", value=text_input, height=100, disabled=True)
                 with col2:
-                    st.subheader("Hasil Koreksi")
-                    st.write(result)
-            
+                    st.text_area("Teks Terkoreksi:", value=corrected_text, height=100, disabled=True)
             except Exception as e:
                 st.error(f"Terjadi kesalahan saat mengoreksi teks: {str(e)}")
+        else:
+            st.warning("Mohon masukkan teks terlebih dahulu!")
+    
+    # Add footer
+    st.markdown("---")
+    st.markdown(
+        """
+        <div style='text-align: center'>
+            <p>Dibuat dengan ❤️ menggunakan Streamlit dan Model T5 untuk Koreksi Ejaan Bahasa Indonesia</p>
+            <p>Model by: MatthewLefrandt</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 if __name__ == "__main__":
     main()
