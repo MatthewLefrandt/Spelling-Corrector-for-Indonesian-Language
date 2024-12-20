@@ -11,8 +11,8 @@ class TypoCorrector:
             self.tokenizer = T5Tokenizer.from_pretrained(tokenizer_dir)
             # Load model with size mismatch handling
             self.model = T5ForConditionalGeneration.from_pretrained(model_name, ignore_mismatched_sizes=True)
-            # Set decoder_start_token_id to pad_token_id
-            self.model.config.decoder_start_token_id = self.tokenizer.pad_token_id
+            # Set decoder_start_token_id to bos_token_id or pad_token_id
+            self.model.config.decoder_start_token_id = self.tokenizer.bos_token_id or self.tokenizer.pad_token_id
         except Exception as e:
             st.error(f"Error loading model or tokenizer: {e}")
             raise
