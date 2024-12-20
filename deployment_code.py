@@ -8,8 +8,8 @@ class TypoCorrector:
         # Muat tokenizer dari folder tokenizer
         self.tokenizer = T5Tokenizer.from_pretrained(tokenizer_dir)
         
-        # Muat model dari file .pt
-        self.model = T5ForConditionalGeneration.from_pretrained(model_name)  # model_name is the name or path of the .pt file
+        # Muat model dari file .pt, dengan mengabaikan ketidakcocokan ukuran parameter
+        self.model = T5ForConditionalGeneration.from_pretrained(model_name, ignore_mismatched_sizes=True)
         
         self.model.to(self.device)
         self.model.eval()
