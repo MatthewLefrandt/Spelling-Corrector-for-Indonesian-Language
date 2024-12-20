@@ -3,4 +3,4 @@ torch
 transformers
 sentencepiece
 protobuf
-gdown
+gdown == 5.2.0
