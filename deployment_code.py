@@ -1,5 +1,5 @@
 import streamlit as st
-from transformers import AutoTokenizer, AutoModelForSeq2SeqGeneration
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 # Set page configuration
 st.set_page_config(
