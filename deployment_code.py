@@ -1,23 +1,18 @@
 import streamlit as st
 from transformers import T5ForConditionalGeneration, T5Tokenizer
 import torch
-import gdown
-import os
 
 class TypoCorrector:
-    def __init__(self, model_file_id, tokenizer_file_id, model_dir="model", tokenizer_dir="tokenizer"):
+    def __init__(self, model_name, tokenizer_dir):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         try:
-            # Unduh model dan tokenizer jika belum ada
-            self.download_from_google_drive(model_file_id, model_dir)
-            self.download_from_google_drive(tokenizer_file_id, tokenizer_dir)
-            
-            # Load tokenizer dan model
+            # Load tokenizer
             self.tokenizer = T5Tokenizer.from_pretrained(tokenizer_dir)
-            self.model = T5ForConditionalGeneration.from_pretrained(model_dir, ignore_mismatched_sizes=True)
+            # Load model with size mismatch handling
+            self.model = T5ForConditionalGeneration.from_pretrained(model_name, ignore_mismatched_sizes=True)
 
-            # Set decoder_start_token_id ke bos_token_id atau pad_token_id
+            # Set decoder_start_token_id to bos_token_id or pad_token_id
             self.model.config.decoder_start_token_id = (
                 self.tokenizer.bos_token_id or self.tokenizer.pad_token_id
             )
@@ -25,26 +20,17 @@ class TypoCorrector:
             self.model.to(self.device)
             self.model.eval()
 
-            st.success("Model dan tokenizer berhasil dimuat.")
+            st.success("Model and tokenizer loaded successfully.")
         except Exception as e:
-            st.error(f"Error saat memuat model atau tokenizer: {e}")
+            st.error(f"Error loading model or tokenizer: {e}")
             raise
-
-    def download_from_google_drive(self, file_id, destination):
-        """
-        Mengunduh file dari Google Drive
-        """
-        if not os.path.exists(destination):
-            os.makedirs(destination)
-        url = f"https://drive.google.com/uc?id={file_id}"
-        gdown.download(url, destination, quiet=False)
 
     def correct_text(self, text, max_length=128):
         try:
-            # Menambahkan prefix sebelum input
+            # Add prefix before input
             prefixed_text = f"koreksi: {text}"
 
-            # Encode input text dan lakukan koreksi
+            # Encode input text and perform correction
             input_ids = self.tokenizer.encode(
                 prefixed_text,
                 return_tensors='pt',
@@ -62,12 +48,12 @@ class TypoCorrector:
                     early_stopping=True
                 )
 
-            # Decode hasil koreksi menjadi teks
+            # Decode correction result into text
             corrected_text = self.tokenizer.decode(output[0], skip_special_tokens=True)
             return corrected_text
         except Exception as e:
-            st.error(f"Error saat melakukan koreksi teks: {e}")
-            return text  # Mengembalikan teks asli jika terjadi kesalahan
+            st.error(f"Error during text correction: {e}")
+            return text  # Return original text if error occurs
 
 # Streamlit page configuration
 st.set_page_config(
@@ -79,30 +65,29 @@ st.set_page_config(
 @st.cache_resource
 def initialize_corrector():
     """
-    Initialize the TypoCorrector dengan caching
+    Initialize the TypoCorrector with caching
     """
-    # ID file model dan tokenizer dari Google Drive
-    MODEL_FILE_ID = '1xJC2Dff8lL1BOWfF4hxSyTkefg7cnw9q'  # Ganti dengan ID file model Anda
-    TOKENIZER_FILE_ID = ['1GSQSzrCwsg5_yOFAzB9GaFEFjCQtRN46', '1jVmo15bMy4GNGP4vRDyLk1b4H6bdZgcs', '1lXBqbmu05zkAseKRXSIX8-tW56ULczSp', '1vEgoBiMp3sovWYsPKKbG_uLzHOJyVWa4']  # Ganti dengan ID file tokenizer Anda
+    MODEL_PATH = 'MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector'
+    TOKENIZER_PATH = 'MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector'
 
     try:
-        return TypoCorrector(MODEL_FILE_ID, TOKENIZER_FILE_ID)
+        return TypoCorrector(MODEL_PATH, TOKENIZER_PATH)
     except Exception as e:
-        st.error(f"Inisialisasi gagal: {e}")
+        st.error(f"Initialization failed: {e}")
         return None
 
 def main():
     st.title("Indonesian Typo Corrector")
     st.write("Masukkan teks yang ingin dikoreksi ejaannya.")
 
-    # Inisialisasi corrector
+    # Initialize corrector
     corrector = initialize_corrector()
 
     if corrector is None:
-        st.error("Gagal memuat model. Silakan refresh halaman atau periksa koneksi internet Anda.")
+        st.error("Failed to initialize the model. Please refresh the page or check your internet connection.")
         return
 
-    # Input teks
+    # Input text
     input_text = st.text_area("Teks Input:", height=150)
 
     if st.button("Koreksi Teks"):
@@ -114,7 +99,7 @@ def main():
             try:
                 result = corrector.correct_text(input_text)
 
-                # Tampilkan hasil koreksi
+                # Display results
                 col1, col2 = st.columns(2)
                 with col1:
                     st.subheader("Teks Asli")
