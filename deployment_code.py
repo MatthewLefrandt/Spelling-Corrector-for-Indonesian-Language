@@ -2,6 +2,47 @@ import streamlit as st
 from transformers import T5ForConditionalGeneration, T5Tokenizer
 import torch
 
+class TypoCorrector:
+    def __init__(self, model_name, tokenizer_dir):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        try:
+            # Load tokenizer
+            self.tokenizer = T5Tokenizer.from_pretrained(tokenizer_dir)
+            # Load model with size mismatch handling
+            self.model = T5ForConditionalGeneration.from_pretrained(model_name, ignore_mismatched_sizes=True)
+        except Exception as e:
+            st.error(f"Error loading model or tokenizer: {e}")
+            raise
+        
+        self.model.to(self.device)
+        self.model.eval()
+        st.success(f"Model and tokenizer loaded successfully")
+        
+    def correct_text(self, text, max_length=128):
+        try:
+            # Tambahkan prefix sebelum input
+            prefixed_text = f"koreksi: {text}"
+            
+            # Encode input text and perform correction
+            input_ids = self.tokenizer.encode(prefixed_text, return_tensors='pt', max_length=max_length, truncation=True).to(self.device)
+            
+            with torch.no_grad():
+                output = self.model.generate(
+                    input_ids,
+                    max_length=max_length,
+                    num_beams=5,
+                    no_repeat_ngram_size=2,
+                    early_stopping=True
+                )
+            
+            # Decode correction result into text
+            corrected_text = self.tokenizer.decode(output[0], skip_special_tokens=True)
+            return corrected_text
+        except Exception as e:
+            st.error(f"Error during text correction: {e}")
+            return text  # Return original text if error occurs
+
 # Konfigurasi halaman Streamlit
 st.set_page_config(
     page_title="Indonesian Typo Corrector",
@@ -10,62 +51,28 @@ st.set_page_config(
 )
 
 @st.cache_resource
-def load_model():
+def initialize_corrector():
     """
-    Memuat model dan tokenizer dengan caching Streamlit
+    Initialize the TypoCorrector with caching
     """
     MODEL_PATH = 'MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector'
     TOKENIZER_PATH = 'MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector'
     
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
-    with st.spinner('Loading model and tokenizer...'):
-        try:
-            tokenizer = T5Tokenizer.from_pretrained(TOKENIZER_PATH)
-            model = T5ForConditionalGeneration.from_pretrained(MODEL_PATH, ignore_mismatched_sizes=True)
-            # Set decoder_start_token_id
-            model.config.decoder_start_token_id = tokenizer.pad_token_id
-            model.to(device)
-            model.eval()
-            return model, tokenizer, device
-        except Exception as e:
-            st.error(f"Error loading model: {str(e)}")
-            return None, None, None
-
-def correct_text(text, model, tokenizer, device, max_length=128):
-    """
-    Melakukan koreksi teks menggunakan model
-    """
     try:
-        # Tambahkan prefix task untuk T5
-        text = f"koreksi: {text}"
-        input_ids = tokenizer.encode(text, return_tensors='pt', max_length=max_length, truncation=True).to(device)
-        
-        with torch.no_grad():
-            outputs = model.generate(
-                input_ids,
-                max_length=max_length,
-                num_beams=5,
-                no_repeat_ngram_size=2,
-                decoder_start_token_id=model.config.decoder_start_token_id,
-                early_stopping=True
-            )
-        
-        corrected_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return corrected_text
+        return TypoCorrector(MODEL_PATH, TOKENIZER_PATH)
     except Exception as e:
-        st.error(f"Error during correction: {str(e)}")
-        return text
+        st.error(f"Initialization failed: {e}")
+        return None
 
 def main():
     st.title("Indonesian Typo Corrector")
     st.write("Masukkan teks yang ingin dikoreksi ejaannya.")
 
-    # Load model
-    model, tokenizer, device = load_model()
+    # Initialize corrector
+    corrector = initialize_corrector()
     
-    if model is None or tokenizer is None:
-        st.error("Failed to load model. Please check your internet connection and try again.")
+    if corrector is None:
+        st.error("Failed to initialize the model. Please refresh the page or check your internet connection.")
         return
 
     # Input text
@@ -77,17 +84,21 @@ def main():
             return
             
         with st.spinner("Sedang mengoreksi teks..."):
-            corrected = correct_text(input_text, model, tokenizer, device)
+            try:
+                result = corrector.correct_text(input_text)
+                
+                # Tampilkan hasil
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.subheader("Teks Asli")
+                    st.write(input_text)
+                
+                with col2:
+                    st.subheader("Hasil Koreksi")
+                    st.write(result)
             
-            # Tampilkan hasil
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("Teks Asli")
-                st.write(input_text)
-            
-            with col2:
-                st.subheader("Hasil Koreksi")
-                st.write(corrected)
+            except Exception as e:
+                st.error(f"Terjadi kesalahan saat mengoreksi teks: {str(e)}")
 
 if __name__ == "__main__":
     main()
