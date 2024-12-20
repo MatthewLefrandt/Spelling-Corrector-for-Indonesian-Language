@@ -35,16 +35,26 @@ def correct_text(text, model, tokenizer, device, max_length=128):
     Melakukan koreksi teks menggunakan model
     """
     try:
+        # Encode input
         input_ids = tokenizer.encode(text, return_tensors='pt', max_length=max_length, truncation=True).to(device)
         
-        with torch.no_grad():
-            output = model.generate(input_ids)
+        # Menentukan decoder_start_token_id jika tidak ada
+        decoder_start_token_id = model.config.decoder_start_token_id or model.config.bos_token_id
         
+        if decoder_start_token_id is None:
+            raise ValueError("decoder_start_token_id or bos_token_id must be defined in the model configuration.")
+        
+        # Generate output
+        with torch.no_grad():
+            output = model.generate(input_ids, decoder_start_token_id=decoder_start_token_id)
+        
+        # Decode output
         corrected_text = tokenizer.decode(output[0], skip_special_tokens=True)
         return corrected_text
     except Exception as e:
         st.error(f"Error during correction: {str(e)}")
         return text
+
 
 def main():
     st.title("Indonesian Typo Corrector")
