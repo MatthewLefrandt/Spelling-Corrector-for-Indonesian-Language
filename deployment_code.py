@@ -12,7 +12,7 @@ st.set_page_config(
 def load_model_and_tokenizer():
     """Load model and tokenizer from HuggingFace"""
     tokenizer = AutoTokenizer.from_pretrained('MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector')
-    model = AutoModelForSeq2SeqGeneration.from_pretrained('MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector')
+    model = AutoModelForSeq2SeqLM.from_pretrained('MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector')
     return model, tokenizer
 
 def correct_spelling(text, model, tokenizer):
