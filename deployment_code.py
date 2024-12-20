@@ -28,7 +28,7 @@ class TypoCorrector:
     def correct_text(self, text, max_length=128):
         try:
             # Add prefix before input
-            prefixed_text = f"koreksi: {text}"
+            prefixed_text = f"{text}"
 
             # Encode input text and perform correction
             input_ids = self.tokenizer.encode(
