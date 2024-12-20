@@ -23,6 +23,8 @@ def load_model():
         try:
             tokenizer = T5Tokenizer.from_pretrained(TOKENIZER_PATH)
             model = T5ForConditionalGeneration.from_pretrained(MODEL_PATH, ignore_mismatched_sizes=True)
+            # Set decoder_start_token_id
+            model.config.decoder_start_token_id = tokenizer.pad_token_id
             model.to(device)
             model.eval()
             return model, tokenizer, device
@@ -35,12 +37,21 @@ def correct_text(text, model, tokenizer, device, max_length=128):
     Melakukan koreksi teks menggunakan model
     """
     try:
+        # Tambahkan prefix task untuk T5
+        text = f"koreksi: {text}"
         input_ids = tokenizer.encode(text, return_tensors='pt', max_length=max_length, truncation=True).to(device)
         
         with torch.no_grad():
-            output = model.generate(input_ids)
+            outputs = model.generate(
+                input_ids,
+                max_length=max_length,
+                num_beams=5,
+                no_repeat_ngram_size=2,
+                decoder_start_token_id=model.config.decoder_start_token_id,
+                early_stopping=True
+            )
         
-        corrected_text = tokenizer.decode(output[0], skip_special_tokens=True)
+        corrected_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
         return corrected_text
     except Exception as e:
         st.error(f"Error during correction: {str(e)}")
