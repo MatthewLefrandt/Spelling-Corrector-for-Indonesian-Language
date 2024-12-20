@@ -3,3 +3,4 @@ torch
 transformers
 sentencepiece
 protobuf
+gdown
