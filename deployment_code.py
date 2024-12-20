@@ -29,7 +29,7 @@ class TypoCorrector:
         except Exception as e:
             st.error(f"Error saat memuat model atau tokenizer: {e}")
             raise
-
+    @st.cache_resource
     def download_from_google_drive(self, file_id, destination):
         """
         Mengunduh file dari Google Drive
