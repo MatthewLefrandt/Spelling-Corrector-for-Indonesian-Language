@@ -1,64 +1,82 @@
 import streamlit as st
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import T5ForConditionalGeneration, T5Tokenizer
+import torch
 
-# Set page configuration
+# Konfigurasi halaman Streamlit
 st.set_page_config(
-    page_title="Indonesian Spell Checker",
+    page_title="Indonesian Typo Corrector",
     page_icon="✍️",
-    layout="centered"
+    layout="wide"
 )
 
 @st.cache_resource
-def load_model_and_tokenizer():
-    """Load model and tokenizer from HuggingFace"""
-    tokenizer = AutoTokenizer.from_pretrained('MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector')
-    model = AutoModelForSeq2SeqLM.from_pretrained('MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector')
-    return model, tokenizer
+def load_model():
+    """
+    Memuat model dan tokenizer dengan caching Streamlit
+    """
+    MODEL_PATH = 'MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector'
+    TOKENIZER_PATH = 'MatthewLefrandt/T5-for-Indonesian-Spelling-Corrector'
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    with st.spinner('Loading model and tokenizer...'):
+        try:
+            tokenizer = T5Tokenizer.from_pretrained(TOKENIZER_PATH)
+            model = T5ForConditionalGeneration.from_pretrained(MODEL_PATH, ignore_mismatched_sizes=True)
+            model.to(device)
+            model.eval()
+            return model, tokenizer, device
+        except Exception as e:
+            st.error(f"Error loading model: {str(e)}")
+            return None, None, None
 
-def correct_spelling(text, model, tokenizer):
-    """Correct spelling in the input text"""
-    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
-    outputs = model.generate(**inputs)
-    corrected_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return corrected_text
+def correct_text(text, model, tokenizer, device, max_length=128):
+    """
+    Melakukan koreksi teks menggunakan model
+    """
+    try:
+        input_ids = tokenizer.encode(text, return_tensors='pt', max_length=max_length, truncation=True).to(device)
+        
+        with torch.no_grad():
+            output = model.generate(input_ids)
+        
+        corrected_text = tokenizer.decode(output[0], skip_special_tokens=True)
+        return corrected_text
+    except Exception as e:
+        st.error(f"Error during correction: {str(e)}")
+        return text
 
 def main():
-    # Header
-    st.title("🔤 Pengoreksi Ejaan Bahasa Indonesia")
-    st.write("Masukkan teks dengan kesalahan ejaan, dan aplikasi akan memperbaikinya.")
+    st.title("Indonesian Typo Corrector")
+    st.write("Masukkan teks yang ingin dikoreksi ejaannya.")
+
+    # Load model
+    model, tokenizer, device = load_model()
     
-    # Load model and tokenizer
-    with st.spinner("Memuat model... Mohon tunggu sebentar..."):
-        model, tokenizer = load_model_and_tokenizer()
+    if model is None or tokenizer is None:
+        st.error("Failed to load model. Please check your internet connection and try again.")
+        return
+
+    # Input text
+    input_text = st.text_area("Teks Input:", height=150)
     
-    # Text input
-    input_text = st.text_area(
-        "Masukkan teks:",
-        height=150,
-        placeholder="Contoh: sya skt kpala krna blm mkn..."
-    )
-    
-    # Correction button
-    if st.button("Perbaiki Ejaan"):
-        if input_text.strip():
-            with st.spinner("Sedang memperbaiki ejaan..."):
-                try:
-                    corrected_text = correct_spelling(input_text, model, tokenizer)
-                    
-                    # Display results
-                    st.subheader("Hasil Perbaikan:")
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.text_area("Teks Asli:", value=input_text, height=150, disabled=True)
-                    
-                    with col2:
-                        st.text_area("Teks yang Diperbaiki:", value=corrected_text, height=150, disabled=True)
-                        
-                except Exception as e:
-                    st.error(f"Terjadi kesalahan: {str(e)}")
-        else:
-            st.warning("Mohon masukkan teks terlebih dahulu!")
+    if st.button("Koreksi Teks"):
+        if not input_text:
+            st.warning("Mohon masukkan teks terlebih dahulu.")
+            return
+            
+        with st.spinner("Sedang mengoreksi teks..."):
+            corrected = correct_text(input_text, model, tokenizer, device)
+            
+            # Tampilkan hasil
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader("Teks Asli")
+                st.write(input_text)
+            
+            with col2:
+                st.subheader("Hasil Koreksi")
+                st.write(corrected)
 
 if __name__ == "__main__":
     main()
